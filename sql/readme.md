@@ -1,0 +1,1 @@
+- Diese Datei in z.B. phpMyAdmin importieren, um die Tabellen für die App anzulegen.

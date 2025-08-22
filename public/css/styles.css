@@ -1,0 +1,10 @@
+body {
+  padding-top: 24px;
+}
+.card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 0;
+}
+.qr-preview {
+  max-width: 280px;
+}

@@ -1,0 +1,43 @@
+
+-- Nutzer (Werber & Geworbene)
+CREATE TABLE users (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  email_enc VARBINARY(512) NOT NULL,
+  email_iv VARBINARY(32) NOT NULL,
+  email_tag VARBINARY(32) NOT NULL,
+  referral_code CHAR(16) NOT NULL UNIQUE,
+  referrer_id BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX (referrer_id),
+  FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Gutscheine
+CREATE TABLE vouchers (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  code CHAR(24) NOT NULL UNIQUE,
+  discount_percent INT NOT NULL,
+  expires_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Einlösungen (Protokoll; Gutschein bleibt gültig!)
+CREATE TABLE redemptions (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  voucher_id BIGINT UNSIGNED NOT NULL,
+  employee_id BIGINT UNSIGNED NULL, -- optional, falls später Mitarbeiteraccounts
+  redeemed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (voucher_id) REFERENCES vouchers(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- E-Mail-Versandlog (optional, hilfreich zum Debuggen)
+CREATE TABLE mail_log (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  to_email VARBINARY(512) NOT NULL,
+  subject VARCHAR(255) NOT NULL,
+  success TINYINT(1) NOT NULL DEFAULT 0,
+  error TEXT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
