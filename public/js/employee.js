@@ -70,6 +70,7 @@ function setupLogin() {
     e.preventDefault();
     const csrf = document.getElementById("csrf").value;
     const pin = document.getElementById("pin").value;
+    document.getElementById("pin").value = "";
     const res = await fetch(`${apiBase}?action=employee_login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -77,7 +78,6 @@ function setupLogin() {
     });
     const data = await res.json();
     if (data.error) return showAlert(msg, "alert-danger", data.error);
-
     loggedIn = true;
     form.classList.add("d-none");
     showAlert(msg, "alert-success", "Login erfolgreich.");
