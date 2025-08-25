@@ -1,3 +1,4 @@
+/* --- Basis --- */
 body {
   padding-top: 24px;
 }
@@ -7,4 +8,110 @@ body {
 }
 .qr-preview {
   max-width: 280px;
+}
+
+/* Kompakter Kameraausschnitt (stabile Mobile-Einheit) */
+:root {
+  --videoMax: 32svh;
+}
+@media (max-height: 740px) {
+  :root {
+    --videoMax: 28svh;
+  }
+}
+
+/* Scanner-Layout */
+#scannerArea.employee-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.video-wrap {
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+#video {
+  display: block;
+  width: 100%;
+  max-height: var(--videoMax);
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #000;
+}
+
+/* Kompakte Hinweise & Formular */
+#scanResult.alert {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+}
+#redeemForm {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+#voucherCode {
+  min-width: 0;
+  font-size: 16px;
+} /* iOS-Zoom vermeiden */
+
+/* Buttons */
+.button-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+#newScanBtn {
+  width: 100%;
+}
+.btn {
+  padding: 10px 12px;
+  line-height: 1.1;
+}
+.spacer-push {
+  margin-top: auto;
+} /* Buttons bleiben unten */
+
+/* --- Mobile-Optimierung: Karte füllt Viewport, Inhalte bleiben sichtbar --- */
+@media (max-width: 576px) {
+  body {
+    padding-top: 8px;
+  }
+  .card.p-4 {
+    /* Bootstrap p-4 kompakter + volle Höhe */
+    padding: 12px;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+  }
+  #scannerArea.employee-mobile {
+    flex: 1 1 auto;
+    min-height: 0; /* verhindert Überlauf in Flex-Container */
+    padding: 8px;
+    gap: 8px;
+  }
+  .card h1.h4 {
+    margin-bottom: 8px;
+  }
+  #scanResult.alert {
+    padding: 6px 8px;
+    font-size: 0.93rem;
+  }
+  #redeemForm {
+    gap: 8px;
+  }
+  .button-row {
+    gap: 8px;
+  }
+  .btn {
+    padding: 9px 10px;
+  }
+  .mt-2 {
+    margin-top: 6px !important;
+  }
 }
