@@ -11,12 +11,20 @@
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
+    <noscript
+      ><div class="container py-3">
+        <div class="alert alert-danger">
+          Diese Anwendung benötigt JavaScript.
+        </div>
+      </div></noscript
+    >
+
     <div class="container">
       <div class="row justify-content-center">
         <div class="col-12 col-md-8 col-lg-6">
           <div class="card p-4">
-            <h1 class="h4 mb-3">Jetzt mit deiner Emailadresse registrieren</h1>
-            <p class="text-muted">
+            <h1 class="h4 mb-2">Jetzt mit deiner E-Mail registrieren</h1>
+            <p class="text-muted mb-3">
               Teile deinen Empfehlungslink und erhalte Gutscheine!
             </p>
 
@@ -35,7 +43,7 @@
                 </div>
               </div>
 
-              <input type="hidden" id="ref" value="" />
+              <input type="hidden" id="ref" />
               <input type="hidden" id="csrf" />
 
               <button class="btn btn-primary w-100" type="submit">
@@ -43,10 +51,14 @@
               </button>
             </form>
 
-            <div id="result" class="alert mt-3 d-none"></div>
+            <div
+              id="result"
+              class="alert mt-3 d-none"
+              role="status"
+              aria-live="polite"
+            ></div>
 
             <hr class="my-4" />
-
             <h2 class="h5">Dein Empfehlungslink</h2>
             <p class="text-muted">
               Nach der Registrierung erhältst du deinen persönlichen Link und

@@ -11,6 +11,14 @@
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
+    <noscript
+      ><div class="container py-3">
+        <div class="alert alert-danger">
+          Diese Anwendung benötigt JavaScript.
+        </div>
+      </div></noscript
+    >
+
     <div class="container">
       <div class="row justify-content-center">
         <div class="col-12 col-lg-8">
@@ -19,7 +27,7 @@
 
             <form id="loginForm" class="row g-2 align-items-end">
               <div class="col-8 col-md-4">
-                <label class="form-label">PIN</label>
+                <label for="pin" class="form-label">PIN</label>
                 <input type="password" id="pin" class="form-control" required />
               </div>
               <div class="col-4 col-md-3">
@@ -30,15 +38,25 @@
               <input type="hidden" id="csrf" />
             </form>
 
-            <div id="loginMsg" class="alert d-none mt-3"></div>
+            <div
+              id="loginMsg"
+              class="alert d-none mt-3"
+              role="status"
+              aria-live="polite"
+            ></div>
 
-            <!-- Scanner-Area -->
+            <!-- Scanner -->
             <div id="scannerArea" class="d-none employee-mobile">
               <div class="video-wrap">
                 <video id="video" playsinline muted></video>
               </div>
 
-              <div id="scanResult" class="alert d-none" role="alert"></div>
+              <div
+                id="scanResult"
+                class="alert d-none"
+                role="status"
+                aria-live="polite"
+              ></div>
 
               <form id="redeemForm" class="d-none" autocomplete="off">
                 <input
@@ -51,22 +69,15 @@
                 </button>
               </form>
 
-              <!-- Buttons: links Start/Stop, rechts Abbrechen -->
               <div class="button-row spacer-push">
                 <button id="toggleScan" class="btn btn-primary">
                   QR-Scan starten
                 </button>
-                <button id="cancelBtn" class="btn btn-outline-secondary d-none">
-                  Abbrechen & zurück zum Login
+                <button id="logoutBtn" class="btn btn-outline-secondary d-none">
+                  Logout
                 </button>
               </div>
-
-              <button id="newScanBtn" class="btn btn-primary d-none mt-2">
-                Neuen QR-Scan starten
-              </button>
             </div>
-
-            <!-- <a href="index.html" class="btn btn-link mt-4">Zur Registrierung</a> -->
           </div>
         </div>
       </div>

@@ -1,52 +1,67 @@
 const apiBase = "../php/api.php";
 
-async function getCsrf() {
-  const res = await fetch(`${apiBase}?action=csrf`);
-  const data = await res.json();
-  document.getElementById("csrf").value = data.csrf;
-}
+// --- UI helpers --------------------------------------------------------------
+const $ = (s) => document.querySelector(s);
+const alertBox = (el, type, html) => {
+  if (!el) return;
+  el.className = `alert mt-3 alert-${type}`;
+  el.innerHTML = html;
+  el.classList.remove("d-none");
+};
+const fetchJSON = async (url, opts) => {
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+};
 
-function getRefFromUrl() {
-  const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get("ref");
-}
+// --- Zentraler Textpool (Frontend-only) -------------------------------------
+const M = {
+  invalidEmail: "Bitte gib eine gültige E-Mail ein.",
+  registering: "Registrierung läuft …",
+  registerOk: (url) =>
+    `Registrierung erfolgreich!<br>Dein Affiliate-Link: <a href="${url}">${url}</a><br>ist zusammen mit einem QR-Code des Links an Deine Emailadresse gesendet worden !`,
+  registerErr: "Registrierung fehlgeschlagen. Bitte erneut versuchen.",
+};
 
-function setUpForm() {
-  const ref = getRefFromUrl();
-  if (ref) document.getElementById("ref").value = ref;
+// --- Init --------------------------------------------------------------------
+(async function init() {
+  // CSRF & Ref setzen
+  $("#csrf").value = (await fetchJSON(`${apiBase}?action=csrf`)).csrf;
+  const ref = new URLSearchParams(location.search).get("ref");
+  if (ref) $("#ref").value = ref;
 
-  const form = document.getElementById("registerForm");
+  // Formular
+  const form = $("#registerForm");
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!form.checkValidity()) {
       form.classList.add("was-validated");
+      alertBox($("#result"), "danger", M.invalidEmail);
       return;
     }
-    const email = document.getElementById("email").value.trim();
-    const ref = document.getElementById("ref").value || null;
-    const csrf = document.getElementById("csrf").value;
+    const payload = {
+      email: $("#email").value.trim(),
+      ref: $("#ref").value || null,
+      csrf: $("#csrf").value,
+    };
 
-    const res = await fetch(`${apiBase}?action=register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, ref, csrf }),
-    });
-    const data = await res.json();
-    const box = document.getElementById("result");
-    box.classList.remove("d-none", "alert-danger", "alert-success");
-
-    if (data.error) {
-      box.classList.add("alert-danger");
-      box.textContent = data.error;
-    } else {
-      box.classList.add("alert-success");
-      box.innerHTML = `
-        Registrierung erfolgreich!<br>
-        Dein Empfehlungslink: <a href="${data.referral_url}">${data.referral_url}</a><br>
-        Du erhältst gleich zusätzlich eine E-Mail mit deinem QR-Code.`;
+    alertBox($("#result"), "info", M.registering);
+    try {
+      const data = await fetchJSON(`${apiBase}?action=register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (data.error) {
+        // Backend-Text wird angezeigt, aber die Stelle ist hier zentralisiert.
+        alertBox($("#result"), "danger", data.error);
+        return;
+      }
+      alertBox($("#result"), "success", M.registerOk(data.referral_url));
       form.reset();
+      form.classList.remove("was-validated");
+    } catch {
+      alertBox($("#result"), "danger", M.registerErr);
     }
   });
-}
-
-getCsrf().then(setUpForm);
+})();
