@@ -54,7 +54,7 @@ function resetToLoginView() {
   cancelBtn?.classList.add("d-none");
   newScanBtn?.classList.add("d-none");
   if (toggleBtn) {
-    toggleBtn.textContent = "Kamera starten";
+    toggleBtn.textContent = "QR-Scan starten";
     toggleBtn.disabled = false;
   }
   showAlert(scanResult, "d-none", "");
@@ -99,7 +99,7 @@ function setupLogin() {
         "alert-danger",
         "Kamera/Scanner konnte nicht gestartet werden: " + e2.message
       );
-      toggleBtn && (toggleBtn.textContent = "Kamera starten");
+      toggleBtn && (toggleBtn.textContent = "QR-Scan starten");
     }
   });
 }
@@ -226,12 +226,12 @@ function setupToggleButton() {
         newScanBtn?.classList.add("d-none"); // falls von vorher sichtbar
       } else {
         await stopScanning();
-        toggleBtn.textContent = "Kamera starten";
+        toggleBtn.textContent = "QR-Scan starten";
         showAlert(scanResult, "alert-warning", "Scanner gestoppt.");
       }
     } catch (e) {
       await stopScanning();
-      toggleBtn.textContent = "Kamera starten";
+      toggleBtn.textContent = "QR-Scan starten";
       showAlert(
         scanResult,
         "alert-danger",
@@ -265,7 +265,7 @@ function setupRedeemForm() {
       showAlert(
         scanResult,
         "alert-success",
-        `Einlösung erfasst. Rabatt: ${data.discount_percent}%`
+        `Gutschein gültig. Rabatt: ${data.discount_percent}%`
       );
     }
   });
