@@ -8,6 +8,10 @@ body {
   border: 0;
   background-color: whitesmoke;
 }
+.form-control {
+  background-color: #0000ff0f;
+  border: 1px solid #000;
+}
 .qr-preview {
   max-width: 280px;
 }
