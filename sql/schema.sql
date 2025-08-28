@@ -5,6 +5,7 @@ CREATE TABLE users (
   email_enc VARBINARY(512) NOT NULL,
   email_iv VARBINARY(32) NOT NULL,
   email_tag VARBINARY(32) NOT NULL,
+  email_hash CHAR(64) NOT NULL,
   referral_code CHAR(16) NOT NULL UNIQUE,
   referrer_id BIGINT UNSIGNED NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

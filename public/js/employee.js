@@ -2,100 +2,181 @@
 import { BrowserQRCodeReader } from "https://esm.sh/@zxing/browser@latest";
 
 const apiBase = "../php/api.php";
+const SUCCESS_VIDEO_SRC = "../media/success.mp4";
 
+// --- Helpers -----------------------------------------------------------------
+const $ = (s) => document.querySelector(s);
+const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
+const alertBox = (el, type, html) => {
+  if (!el) return;
+  el.className = `alert alert-${type}`;
+  el.innerHTML = html;
+  el.classList.remove("d-none");
+};
+const hide = (el) => el && el.classList.add("d-none");
+
+// JSON fetch, gibt bei Fehler die Backend-Message aus (statt nur Statuscode)
+const fetchJSON = async (url, opts) => {
+  const res = await fetch(url, opts);
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = {};
+  }
+  if (!res.ok) {
+    const msg = data?.error || data?.message || `${res.status}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+};
+
+// --- Texte -------------------------------------------------------------------
+const M = {
+  loginOk: "Login erfolgreich.",
+  pinWrong: "Pincode falsch !",
+  mustLogin: "Bitte zuerst einloggen.",
+  scanningStart: "Scanner läuft – richte die Kamera auf den QR-Code.",
+  scanningStop: "Scanner gestoppt.",
+  noCode:
+    "Kein QR-Code erkannt. Bitte ruhig halten und vollständig im Bild platzieren.",
+  validateErr: (m) => `Validierung fehlgeschlagen: ${m}`,
+  success: (p) => `Gutschein gültig. Rabatt: ${p}%`,
+  redeemed: (p) =>
+    `Gutschein erfolgreich eingelöst.${p ? " Rabatt: " + p + "%" : ""}`,
+  invalid: (reason = "Unbekannt") =>
+    `Ungültig: ${reason}. Bitte erneut versuchen.`,
+  camStartErr: (m) => `Kamera/Scanner konnte nicht gestartet werden: ${m}`,
+  camStartFail: (m) => `Kamera konnte nicht gestartet werden: ${m}`,
+  loggedOut: "Abgemeldet.",
+};
+
+// --- Elemente ----------------------------------------------------------------
 let loggedIn = false;
-let controls = null; // ZXing Controls (zum Stoppen)
-const video = document.getElementById("video");
-const toggleBtn = document.getElementById("toggleScan");
-const scanResult = document.getElementById("scanResult");
-const redeemForm = document.getElementById("redeemForm");
-const voucherInput = document.getElementById("voucherCode");
+let controls = null;
 
-function showAlert(el, cls, msg) {
-  el.classList.remove(
-    "d-none",
-    "alert-success",
-    "alert-danger",
-    "alert-info",
-    "alert-warning"
-  );
-  el.classList.add(cls);
-  el.innerHTML = msg;
-}
+const video = $("#video");
+const toggleBtn = $("#toggleScan");
+const scanResult = $("#scanResult");
+const redeemForm = $("#redeemForm");
+const voucherInput = $("#voucherCode");
+const logoutBtn = $("#logoutBtn");
+const loginMsg = $("#loginMsg");
 
-async function getCsrf() {
-  const res = await fetch(`${apiBase}?action=csrf`);
-  const data = await res.json();
-  document.getElementById("csrf").value = data.csrf;
-}
+// „Neuen QR-Scan starten“ & früherer Cancel-Button existieren nicht mehr
+$("#newScanBtn")?.remove();
 
+let lastNoCodeHintAt = 0;
+const NO_CODE_HINT_MS = 1500;
+
+// --- Bootstrap ---------------------------------------------------------------
+(async function bootstrap() {
+  $("#csrf").value = (await fetchJSON(`${apiBase}?action=csrf`)).csrf;
+  setupLogin();
+  setupToggle();
+  setupRedeem();
+  setupLogout();
+  tuneVideoHeight();
+})();
+
+// --- Login -------------------------------------------------------------------
 function setupLogin() {
-  const form = document.getElementById("loginForm");
-  const msg = document.getElementById("loginMsg");
-  form.addEventListener("submit", async (e) => {
+  on($("#loginForm"), "submit", async (e) => {
     e.preventDefault();
-    const csrf = document.getElementById("csrf").value;
-    const pin = document.getElementById("pin").value;
-    const res = await fetch(`${apiBase}?action=employee_login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ csrf, pin }),
+
+    const body = JSON.stringify({
+      csrf: $("#csrf").value,
+      pin: $("#pin").value.trim(), // PIN nur hier senden
     });
-    const data = await res.json();
-    if (data.error) return showAlert(msg, "alert-danger", data.error);
-    loggedIn = true;
-    showAlert(msg, "alert-success", "Login erfolgreich.");
-    document.getElementById("scannerArea").classList.remove("d-none");
+    $("#pin").value = ""; // Eingabefeld leeren
+
+    try {
+      // WICHTIG: kein fetchJSON, damit wir Statuscode auf 403 mappen können
+      const res = await fetch(`${apiBase}?action=employee_login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        // (1) Falscher PIN: schöne, klare Meldung
+        const msg =
+          res.status === 403 ? M.pinWrong : data.error || `${res.status}`;
+        return alertBox(loginMsg, "danger", msg);
+      }
+
+      loggedIn = true;
+      $("#loginForm").classList.add("d-none");
+      $("#scannerArea").classList.remove("d-none");
+      logoutBtn.classList.remove("d-none");
+      alertBox(loginMsg, "success", M.loginOk);
+
+      try {
+        await startScanning();
+        toggleBtn.textContent = "Scannen beenden";
+        alertBox(scanResult, "info", M.scanningStart);
+      } catch (e2) {
+        alertBox(scanResult, "danger", M.camStartErr(e2.message));
+        toggleBtn.textContent = "QR-Scan starten";
+      }
+    } catch (e) {
+      // Netzwerk-/andere Fehler → nüchtern anzeigen, KEIN Kamera-Text
+      alertBox(loginMsg, "danger", e.message || "Unbekannter Fehler");
+    }
   });
 }
 
+// --- Scanner -----------------------------------------------------------------
 async function startScanning() {
-  // ZXing übernimmt getUserMedia selbst
-  const reader = new BrowserQRCodeReader();
-  controls = await reader.decodeFromVideoDevice(
-    undefined,
-    video,
-    async (result, err) => {
-      if (result) {
-        const code = (
-          result.getText ? result.getText() : String(result)
-        ).trim();
-        voucherInput.value = code;
-        redeemForm.classList.remove("d-none");
+  resetVideo();
+  video.setAttribute("playsinline", "");
+  video.muted = true;
 
-        // Direkt validieren
-        const csrf = document.getElementById("csrf").value;
-        try {
-          const res = await fetch(`${apiBase}?action=validate_voucher`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ csrf, code }),
-          });
-          const data = await res.json();
-          if (data.valid) {
-            showAlert(
-              scanResult,
-              "alert-success",
-              `Gutschein gültig. Rabatt: ${data.discount_percent}%`
-            );
-          } else {
-            showAlert(
-              scanResult,
-              "alert-danger",
-              `Ungültig: ${data.reason || "Unbekannt"}`
-            );
-          }
-        } catch (e) {
-          showAlert(
-            scanResult,
-            "alert-danger",
-            "Validierung fehlgeschlagen: " + e.message
-          );
-        }
+  const reader = new BrowserQRCodeReader();
+  controls = await reader.decodeFromVideoDevice(undefined, video, onFrame);
+}
+
+async function onFrame(result, err) {
+  if (result) {
+    const code = (result.getText ? result.getText() : String(result)).trim();
+    voucherInput.value = code;
+    redeemForm.classList.remove("d-none");
+
+    try {
+      const data = await fetchJSON(`${apiBase}?action=validate_voucher`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csrf: $("#csrf").value, code }),
+      });
+
+      if (data.valid) {
+        await stopScanning();
+        alertBox(scanResult, "success", M.success(data.discount_percent));
+        playSuccessVideo().catch(() => {});
+        toggleBtn.textContent = "QR-Scan starten";
+      } else {
+        alertBox(scanResult, "danger", M.invalid(data.reason));
       }
-      // err: häufig nur "kein Code im aktuellen Frame" – nicht kritisch
+    } catch (e) {
+      alertBox(scanResult, "danger", M.validateErr(e.message));
     }
-  );
+    return;
+  }
+
+  if (err && Date.now() - lastNoCodeHintAt > NO_CODE_HINT_MS && !controls) {
+    lastNoCodeHintAt = Date.now();
+    alertBox(scanResult, "warning", M.noCode);
+  }
 }
 
 async function stopScanning() {
@@ -106,75 +187,139 @@ async function stopScanning() {
   try {
     await video.pause();
   } catch {}
-  // Tracks werden von controls.stop() beendet; falls nicht:
   const stream = video.srcObject;
-  if (stream && stream.getTracks) stream.getTracks().forEach((t) => t.stop());
+  if (stream?.getTracks) stream.getTracks().forEach((t) => t.stop());
   video.srcObject = null;
 }
 
-function setupToggleButton() {
-  toggleBtn.addEventListener("click", async () => {
-    if (!loggedIn) return alert("Bitte zuerst einloggen.");
+function resetVideo() {
+  try {
+    video.pause();
+  } catch {}
+  video.removeAttribute("src");
+  video.srcObject = null;
+  video.load?.();
+}
+
+async function playSuccessVideo() {
+  resetVideo();
+  video.src = SUCCESS_VIDEO_SRC;
+  video.muted = false;
+  video.volume = 1;
+  try {
+    await video.play();
+  } catch {}
+}
+
+// --- UI: Toggle Scan ---------------------------------------------------------
+function setupToggle() {
+  on(toggleBtn, "click", async () => {
+    if (!loggedIn) return alert(M.mustLogin);
     toggleBtn.disabled = true;
     try {
       if (!controls) {
+        alertBox(scanResult, "info", M.scanningStart);
         await startScanning();
         toggleBtn.textContent = "Scannen beenden";
-        showAlert(
-          scanResult,
-          "alert-info",
-          "Scanner läuft – richte die Kamera auf den QR-Code."
-        );
       } else {
         await stopScanning();
-        toggleBtn.textContent = "Kamera starten";
-        showAlert(scanResult, "alert-warning", "Scanner gestoppt.");
+        toggleBtn.textContent = "QR-Scan starten";
+        alertBox(scanResult, "warning", M.scanningStop);
       }
     } catch (e) {
       await stopScanning();
-      toggleBtn.textContent = "Kamera starten";
-      showAlert(
-        scanResult,
-        "alert-danger",
-        "Kamera/Scanner konnte nicht gestartet werden: " + e.message
-      );
+      toggleBtn.textContent = "QR-Scan starten";
+      alertBox(scanResult, "danger", M.camStartErr(e.message));
     } finally {
       toggleBtn.disabled = false;
     }
   });
-
-  // Sicher stoppen, wenn Seite verlassen wird
-  window.addEventListener("pagehide", stopScanning);
-  window.addEventListener("beforeunload", stopScanning);
+  on(window, "pagehide", stopScanning);
+  on(window, "beforeunload", stopScanning);
 }
 
-function setupRedeemForm() {
-  redeemForm.addEventListener("submit", async (e) => {
+// --- Einlösen ----------------------------------------------------------------
+function setupRedeem() {
+  on(redeemForm, "submit", async (e) => {
     e.preventDefault();
-    const code = voucherInput.value.trim();
-    const csrf = document.getElementById("csrf").value;
-    const pin = document.getElementById("pin").value;
+    if (!loggedIn) return alertBox(scanResult, "danger", M.mustLogin);
 
-    const res = await fetch(`${apiBase}?action=redeem_voucher`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ csrf, code, pin }),
+    const body = JSON.stringify({
+      csrf: $("#csrf").value,
+      code: voucherInput.value.trim(),
+      // Session-Auth: keine PIN hier!
     });
-    const data = await res.json();
-    if (data.error) {
-      showAlert(scanResult, "alert-danger", data.error);
-    } else {
-      showAlert(
-        scanResult,
-        "alert-success",
-        `Einlösung erfasst. Rabatt: ${data.discount_percent}%`
-      );
+
+    try {
+      const res = await fetch(`${apiBase}?action=redeem_voucher`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        credentials: "same-origin",
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        return alertBox(
+          scanResult,
+          "danger",
+          data.error || `Fehler ${res.status}`
+        );
+      }
+
+      // (3) sichtbare, eindeutige Erfolgsmeldung fürs Einlösen
+      alertBox(scanResult, "success", M.redeemed(data.discount_percent));
+    } catch (err) {
+      alertBox(scanResult, "danger", M.validateErr(err.message));
     }
   });
 }
 
-getCsrf().then(() => {
-  setupLogin();
-  setupToggleButton();
-  setupRedeemForm();
-});
+// --- Logout ------------------------------------------------------------------
+function setupLogout() {
+  on(logoutBtn, "click", async (e) => {
+    e.preventDefault();
+    try {
+      await fetchJSON(`${apiBase}?action=employee_logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csrf: $("#csrf").value }),
+        credentials: "same-origin",
+      });
+    } catch {}
+    loggedIn = false;
+    await stopScanning();
+    $("#scannerArea").classList.add("d-none");
+    $("#loginForm").classList.remove("d-none");
+    toggleBtn.textContent = "QR-Scan starten";
+    logoutBtn.classList.add("d-none");
+    hide(scanResult);
+    redeemForm.classList.add("d-none");
+    voucherInput.value = "";
+    resetVideo();
+    alertBox(loginMsg, "info", M.loggedOut);
+  });
+}
+
+// --- Video-Höhe (mobil) ------------------------------------------------------
+function tuneVideoHeight() {
+  const root = document.documentElement;
+  const setMax = () => {
+    const h = window.visualViewport
+      ? window.visualViewport.height
+      : innerHeight;
+    root.style.setProperty(
+      "--videoMax",
+      Math.max(30, Math.min(40, (h * 0.38) / (h / 100))) + "dvh"
+    );
+  };
+  setMax();
+  window.addEventListener("resize", setMax);
+}
