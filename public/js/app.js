@@ -8,11 +8,20 @@ const alertBox = (el, type, html) => {
   el.innerHTML = html;
   el.classList.remove("d-none");
 };
-const fetchJSON = async (url, opts) => {
-  const res = await fetch(url, opts);
-  if (!res.ok) throw new Error(`${res.status}`);
-  return res.json();
-};
+
+async function fetchJSON(url, options = {}) {
+  const res = await fetch(url, options);
+
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+
+  // Immer Status + Daten zurückgeben
+  return { status: res.status, data };
+}
 
 // --- Zentraler Textpool (Frontend-only) -------------------------------------
 const M = {
@@ -25,8 +34,18 @@ const M = {
 
 // --- Init --------------------------------------------------------------------
 (async function init() {
-  // CSRF & Ref setzen
-  $("#csrf").value = (await fetchJSON(`${apiBase}?action=csrf`)).csrf;
+  const { status: csrfStatus, data: csrfData } = await fetchJSON(
+    `${apiBase}?action=csrf`,
+    {
+      method: "GET",
+      credentials: "include", // Session-Cookie empfangen
+    }
+  );
+  if (csrfStatus !== 200 || !csrfData?.csrf) {
+    console.error("CSRF fetch failed", { csrfStatus, csrfData });
+  } else {
+    $("#csrf").value = csrfData.csrf;
+  }
   const ref = new URLSearchParams(location.search).get("ref");
   if (ref) $("#ref").value = ref;
 
@@ -47,20 +66,31 @@ const M = {
 
     alertBox($("#result"), "info", M.registering);
     try {
-      const data = await fetchJSON(`${apiBase}?action=register`, {
+      const { status, data } = await fetchJSON(`${apiBase}?action=register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        credentials: "include", // Session-Cookie mitschicken
       });
-      if (data.error) {
-        // Backend-Text wird angezeigt, aber die Stelle ist hier zentralisiert.
-        alertBox($("#result"), "danger", data.error);
+
+      if (status === 409) {
+        alertBox(
+          $("#result"),
+          "danger",
+          data.msg || "Diese E-Mail-Adresse ist bereits registriert."
+        );
         return;
       }
+
+      if (status !== 200 || data.error) {
+        alertBox($("#result"), "danger", data.error || M.registerErr);
+        return;
+      }
+
       alertBox($("#result"), "success", M.registerOk(data.referral_url));
       form.reset();
       form.classList.remove("was-validated");
-    } catch {
+    } catch (err) {
       alertBox($("#result"), "danger", M.registerErr);
     }
   });

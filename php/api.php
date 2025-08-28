@@ -53,6 +53,23 @@ function genReferralCode(PDO $pdo, int $len = 12): string {
     return $out;
 }
 
+/** Normalisierte E-Mail (lowercase & trim) */
+function normalizeEmail(string $email): string {
+    return trim(strtolower($email));
+}
+
+/**
+ * Deterministischer E-Mail-Fingerprint (für Duplikat-Check).
+ * Verwendet HMAC-SHA256 mit geheimem Pepper (EMAIL_HASH_KEY).
+ */
+function emailFingerprint(string $normalizedEmail): string {
+    $key = $_ENV['EMAIL_HASH_KEY'] ?? '';
+    if ($key === '') {
+        throw new RuntimeException('EMAIL_HASH_KEY is not set');
+    }
+    return hash_hmac('sha256', $normalizedEmail, $key);
+}
+
 // ----------------- Leichte GETs -----------------
 Csrf::ensureSession();
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -110,14 +127,26 @@ if ($method === 'POST') {
 
 function handleRegister(PDO $pdo, Crypto $crypto, Mailer $mailer, array $input): void
 {
-    $email = trim(strtolower($input['email'] ?? ''));
+    $email = normalizeEmail((string)($input['email'] ?? ''));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         \App\jsonResponse(['error' => 'Ungültige E-Mail'], 422);
     }
 
     $referral = $input['ref'] ?? null;
 
-    // E-Mail verschlüsseln
+    // === NEU: Bereits registriert? (HMAC-Fingerprint vergleichen)
+    $finger = emailFingerprint($email);
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE email_hash = ? LIMIT 1');
+    $stmt->execute([$finger]);
+    if ($stmt->fetchColumn()) {
+        \App\jsonResponse([
+            'ok'    => false,
+            'error' => 'EMAIL_IN_USE',
+            'msg'   => 'Diese E-Mail-Adresse ist bereits registriert.'
+        ], 409);
+    }
+
+    // E-Mail verschlüsseln (für spätere Kontaktaufnahme)
     $enc = $crypto->encrypt($email);
 
     // Referrer (falls vorhanden)
@@ -128,11 +157,26 @@ function handleRegister(PDO $pdo, Crypto $crypto, Mailer $mailer, array $input):
         $referrerId = $stmt->fetchColumn() ?: null;
     }
 
-    // Nutzer anlegen
+    // Nutzer anlegen (inkl. email_hash)
     $refCode = genReferralCode($pdo);
-    $stmt = $pdo->prepare('INSERT INTO users (email_enc, email_iv, email_tag, referral_code, referrer_id) VALUES (?, ?, ?, ?, ?)');
-    $stmt->execute([$enc['ciphertext'], $enc['iv'], $enc['tag'], $refCode, $referrerId]);
-    $userId = (int)$pdo->lastInsertId();
+    try {
+        $stmt = $pdo->prepare('
+            INSERT INTO users (email_hash, email_enc, email_iv, email_tag, referral_code, referrer_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ');
+        $stmt->execute([$finger, $enc['ciphertext'], $enc['iv'], $enc['tag'], $refCode, $referrerId]);
+        $userId = (int)$pdo->lastInsertId();
+    } catch (\PDOException $e) {
+        // Falls Unique-Constraint auf email_hash greift (Race-Condition)
+        if (isset($e->errorInfo[1]) && (int)$e->errorInfo[1] === 1062) {
+            \App\jsonResponse([
+                'ok'    => false,
+                'error' => 'EMAIL_IN_USE',
+                'msg'   => 'Diese E-Mail-Adresse ist bereits registriert.'
+            ], 409);
+        }
+        throw $e;
+    }
 
     // Empfehlungslink + QR an Nutzer
     $refUrl = \App\appUrl('index.html') . '?ref=' . urlencode($refCode);
