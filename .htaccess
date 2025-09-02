@@ -1,14 +1,3 @@
 <Files ".env">
     Require all denied
 </Files>
-# 1. Verzeichnisauflistung deaktivieren
-Options -Indexes
-
-# 2. RewriteEngine aktivieren
-RewriteEngine On
-
-# 3. Prüfen ob Pfad nicht /public enthält
-RewriteCond %{REQUEST_URI} !^/recom/public [NC]
-
-# 4. Weiterleitung auf /recom/public
-RewriteRule ^.*$ /recom/public/ [L,R=302]
