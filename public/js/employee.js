@@ -62,6 +62,7 @@ const video = $("#video");
 const toggleBtn = $("#toggleScan");
 const scanResult = $("#scanResult");
 const redeemForm = $("#redeemForm");
+const redeemBtn = $("#redeemBtn");
 const voucherInput = $("#voucherCode");
 const logoutBtn = $("#logoutBtn");
 const loginMsg = $("#loginMsg");
@@ -150,7 +151,12 @@ async function onFrame(result, err) {
   if (result) {
     const code = (result.getText ? result.getText() : String(result)).trim();
     voucherInput.value = code;
-    redeemForm.classList.remove("d-none");
+
+    // Kamera sofort stoppen, sobald ein Code erkannt wurde
+    try {
+      await stopScanning();
+    } catch (_) {}
+    toggleBtn.textContent = "QR-Scan starten";
 
     try {
       const data = await fetchJSON(`${apiBase}?action=validate_voucher`, {
@@ -160,12 +166,17 @@ async function onFrame(result, err) {
       });
 
       if (data.valid) {
-        await stopScanning();
         alertBox(scanResult, "success", M.success(data.discount_percent));
         playSuccessVideo().catch(() => {});
-        toggleBtn.textContent = "QR-Scan starten";
+        redeemForm.classList.remove("d-none");
       } else {
-        alertBox(scanResult, "danger", M.invalid(data.reason));
+        // Backend-Text direkt anzeigen, Fallback wenn leer
+        const msg =
+          typeof data.reason === "string" && data.reason.trim()
+            ? data.reason.trim()
+            : M.invalid();
+
+        alertBox(scanResult, "danger", msg);
       }
     } catch (e) {
       alertBox(scanResult, "danger", M.validateErr(e.message));
@@ -242,15 +253,22 @@ function setupToggle() {
 function setupRedeem() {
   on(redeemForm, "submit", async (e) => {
     e.preventDefault();
-    if (!loggedIn) return alertBox(scanResult, "danger", M.mustLogin);
 
-    const body = JSON.stringify({
-      csrf: $("#csrf").value,
-      code: voucherInput.value.trim(),
-      // Session-Auth: keine PIN hier!
-    });
+    // Doppelklicks sofort verhindern
+    if (redeemBtn.disabled) return;
+    redeemBtn.disabled = true;
 
     try {
+      if (!loggedIn) {
+        alertBox(scanResult, "danger", M.mustLogin);
+        return;
+      }
+
+      const body = JSON.stringify({
+        csrf: $("#csrf").value,
+        code: voucherInput.value.trim(),
+      });
+
       const res = await fetch(`${apiBase}?action=redeem_voucher`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -267,17 +285,17 @@ function setupRedeem() {
       }
 
       if (!res.ok) {
-        return alertBox(
-          scanResult,
-          "danger",
-          data.error || `Fehler ${res.status}`
-        );
+        alertBox(scanResult, "danger", data.error || `Fehler ${res.status}`);
+        return;
       }
 
-      // (3) sichtbare, eindeutige Erfolgsmeldung fürs Einlösen
+      // Erfolgreich eingelöst: Formular weg, Meldung zeigen
+      redeemForm.classList.add("d-none");
       alertBox(scanResult, "success", M.redeemed(data.discount_percent));
     } catch (err) {
       alertBox(scanResult, "danger", M.validateErr(err.message));
+    } finally {
+      redeemBtn.disabled = false;
     }
   });
 }
