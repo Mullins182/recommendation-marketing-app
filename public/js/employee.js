@@ -6,7 +6,6 @@ const SUCCESS_VIDEO_SRC = "../media/success.mp4";
 
 // --- Helpers -----------------------------------------------------------------
 const $ = (s) => document.querySelector(s);
-const show = (el) => el && el.classList.remove("d-none");
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 const alertBox = (el, type, html) => {
   if (!el) return;
@@ -63,6 +62,7 @@ const video = $("#video");
 const toggleBtn = $("#toggleScan");
 const scanResult = $("#scanResult");
 const redeemForm = $("#redeemForm");
+const redeemBtn = $("#redeemBtn");
 const voucherInput = $("#voucherCode");
 const logoutBtn = $("#logoutBtn");
 const loginMsg = $("#loginMsg");
@@ -151,7 +151,6 @@ async function onFrame(result, err) {
   if (result) {
     const code = (result.getText ? result.getText() : String(result)).trim();
     voucherInput.value = code;
-    // redeemForm.classList.add("d-none");
 
     // Kamera sofort stoppen, sobald ein Code erkannt wurde
     try {
@@ -254,14 +253,22 @@ function setupToggle() {
 function setupRedeem() {
   on(redeemForm, "submit", async (e) => {
     e.preventDefault();
-    if (!loggedIn) return alertBox(scanResult, "danger", M.mustLogin);
 
-    const body = JSON.stringify({
-      csrf: $("#csrf").value,
-      code: voucherInput.value.trim(),
-    });
+    // Doppelklicks sofort verhindern
+    if (redeemBtn.disabled) return;
+    redeemBtn.disabled = true;
 
     try {
+      if (!loggedIn) {
+        alertBox(scanResult, "danger", M.mustLogin);
+        return;
+      }
+
+      const body = JSON.stringify({
+        csrf: $("#csrf").value,
+        code: voucherInput.value.trim(),
+      });
+
       const res = await fetch(`${apiBase}?action=redeem_voucher`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -278,17 +285,17 @@ function setupRedeem() {
       }
 
       if (!res.ok) {
-        return alertBox(
-          scanResult,
-          "danger",
-          data.error || `Fehler ${res.status}`
-        );
+        alertBox(scanResult, "danger", data.error || `Fehler ${res.status}`);
+        return;
       }
 
-      // Erfolgsmeldung fürs Einlösen
+      // Erfolgreich eingelöst: Formular weg, Meldung zeigen
+      redeemForm.classList.add("d-none");
       alertBox(scanResult, "success", M.redeemed(data.discount_percent));
     } catch (err) {
       alertBox(scanResult, "danger", M.validateErr(err.message));
+    } finally {
+      redeemBtn.disabled = false;
     }
   });
 }
