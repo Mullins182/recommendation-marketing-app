@@ -6,6 +6,7 @@ const SUCCESS_VIDEO_SRC = "../media/success.mp4";
 
 // --- Helpers -----------------------------------------------------------------
 const $ = (s) => document.querySelector(s);
+const show = (el) => el && el.classList.remove("d-none");
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 const alertBox = (el, type, html) => {
   if (!el) return;
@@ -150,7 +151,13 @@ async function onFrame(result, err) {
   if (result) {
     const code = (result.getText ? result.getText() : String(result)).trim();
     voucherInput.value = code;
-    redeemForm.classList.remove("d-none");
+    // redeemForm.classList.add("d-none");
+
+    // Kamera sofort stoppen, sobald ein Code erkannt wurde
+    try {
+      await stopScanning();
+    } catch (_) {}
+    toggleBtn.textContent = "QR-Scan starten";
 
     try {
       const data = await fetchJSON(`${apiBase}?action=validate_voucher`, {
@@ -160,12 +167,17 @@ async function onFrame(result, err) {
       });
 
       if (data.valid) {
-        await stopScanning();
         alertBox(scanResult, "success", M.success(data.discount_percent));
         playSuccessVideo().catch(() => {});
-        toggleBtn.textContent = "QR-Scan starten";
+        redeemForm.classList.remove("d-none");
       } else {
-        alertBox(scanResult, "danger", M.invalid(data.reason));
+        // Backend-Text direkt anzeigen, Fallback wenn leer
+        const msg =
+          typeof data.reason === "string" && data.reason.trim()
+            ? data.reason.trim()
+            : M.invalid();
+
+        alertBox(scanResult, "danger", msg);
       }
     } catch (e) {
       alertBox(scanResult, "danger", M.validateErr(e.message));
@@ -247,7 +259,6 @@ function setupRedeem() {
     const body = JSON.stringify({
       csrf: $("#csrf").value,
       code: voucherInput.value.trim(),
-      // Session-Auth: keine PIN hier!
     });
 
     try {
@@ -274,7 +285,7 @@ function setupRedeem() {
         );
       }
 
-      // (3) sichtbare, eindeutige Erfolgsmeldung fürs Einlösen
+      // Erfolgsmeldung fürs Einlösen
       alertBox(scanResult, "success", M.redeemed(data.discount_percent));
     } catch (err) {
       alertBox(scanResult, "danger", M.validateErr(err.message));

@@ -210,15 +210,28 @@ function handleValidateVoucher(PDO $pdo, array $input): void
     $code = strtoupper(trim($input['code'] ?? ''));
     if ($code === '') \App\jsonResponse(['error' => 'Code fehlt'], 422);
 
-    $stmt = $pdo->prepare('SELECT v.id, v.user_id, v.discount_percent, v.expires_at, u.referrer_id
-                           FROM vouchers v JOIN users u ON v.user_id=u.id
-                           WHERE v.code = ?');
+    $stmt = $pdo->prepare('SELECT v.id, v.user_id, v.discount_percent, v.expires_at, u.referrer_id,
+                                    EXISTS (
+                                        SELECT 1
+                                        FROM redemptions r
+                                        WHERE r.voucher_id = v.id
+                                    ) AS already_redeemed
+                               FROM vouchers v
+                               JOIN users u ON v.user_id = u.id
+                              WHERE v.code = ?');
     $stmt->execute([$code]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$row) \App\jsonResponse(['valid' => false, 'reason' => 'Nicht gefunden']);
+
+    if (!$row) {
+        \App\jsonResponse(['valid' => false, 'reason' => 'Nicht gefunden']);
+    }
 
     if (!empty($row['expires_at']) && new DateTimeImmutable($row['expires_at']) < new DateTimeImmutable()) {
         \App\jsonResponse(['valid' => false, 'reason' => 'Abgelaufen']);
+    }
+
+    if (!empty($row['already_redeemed'])) {
+        \App\jsonResponse(['valid' => false, 'reason' => 'Gutschein wurde bereits eingelöst']);
     }
 
     \App\jsonResponse([
