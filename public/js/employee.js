@@ -3,6 +3,7 @@ import { BrowserQRCodeReader } from "https://esm.sh/@zxing/browser@latest";
 
 const apiBase = "../php/api.php";
 const SUCCESS_VIDEO_SRC = "../media/success.mp4";
+const FAILED_VIDEO_SRC = "../media/fail.mp4";
 
 // --- Helpers -----------------------------------------------------------------
 const $ = (s) => document.querySelector(s);
@@ -170,6 +171,7 @@ async function onFrame(result, err) {
         playSuccessVideo().catch(() => {});
         redeemForm.classList.remove("d-none");
       } else {
+        playFailedVideo().catch(() => {});
         // Backend-Text direkt anzeigen, Fallback wenn leer
         const msg =
           typeof data.reason === "string" && data.reason.trim()
@@ -215,6 +217,16 @@ function resetVideo() {
 async function playSuccessVideo() {
   resetVideo();
   video.src = SUCCESS_VIDEO_SRC;
+  video.muted = false;
+  video.volume = 1;
+  try {
+    await video.play();
+  } catch {}
+}
+
+async function playFailedVideo() {
+  resetVideo();
+  video.src = FAILED_VIDEO_SRC;
   video.muted = false;
   video.volume = 1;
   try {
