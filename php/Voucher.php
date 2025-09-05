@@ -38,7 +38,7 @@ class Voucher {
   <p>Gültig bis: <strong>{$expiresText}</strong></p>
   <p style="margin-top:20px;">QR-Code zum Einlösen im Geschäft:</p>
   <img src="{$qrDataUri}" alt="Voucher QR" style="width:250px;height:auto;">
-  <p style="font-size:12px;color:#666;margin-top:20px">Hinweis: Dieser Gutschein bleibt auch nach Einlösung weiterhin gültig.</p>
+  <p style="font-size:12px;color:#666;margin-top:20px">Hinweis: Dieser Gutschein kann nur einmalig eingelöst werden.</p>
 </body></html>
 HTML;
 

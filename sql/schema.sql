@@ -36,9 +36,11 @@ CREATE TABLE redemptions (
 -- E-Mail-Versandlog (optional, hilfreich zum Debuggen)
 CREATE TABLE mail_log (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-  to_email VARBINARY(512) NOT NULL,
+  to_user_id BIGINT UNSIGNED NULL,
   subject VARCHAR(255) NOT NULL,
   success TINYINT(1) NOT NULL DEFAULT 0,
   error TEXT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_mail_log_to_user_id (to_user_id),
+  CONSTRAINT fk_mail_log_user FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
