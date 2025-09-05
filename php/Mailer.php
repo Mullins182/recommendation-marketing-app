@@ -68,7 +68,23 @@ class Mailer {
     }
 
     private function logMail(string $to, string $subject, int $success, ?string $error): void {
-        $stmt = $this->pdo->prepare('INSERT INTO mail_log (to_email, subject, success, error) VALUES (?, ?, ?, ?)');
-        $stmt->execute([$to, $subject, $success, $error]);
+    // user_id zum Empfänger ermitteln (normalize + HMAC wie in der Registrierung)
+        $userId = null;
+        $key = $_ENV['EMAIL_HASH_KEY'] ?? '';
+        if ($key !== '') {
+            $normalized = trim(strtolower($to));
+            $fingerprint = hash_hmac('sha256', $normalized, $key);
+            $stmt = $this->pdo->prepare('SELECT id FROM users WHERE email_hash = ? LIMIT 1');
+            $stmt->execute([$fingerprint]);
+         $uid = $stmt->fetchColumn();
+         if ($uid !== false) {
+            $userId = (int)$uid;
+            }
+    }
+
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO mail_log (to_user_id, subject, success, error) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$userId, $subject, $success, $error]);
     }
 }
