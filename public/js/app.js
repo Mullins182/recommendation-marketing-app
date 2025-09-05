@@ -1,4 +1,4 @@
-// ------------------------------------ Affiliate App v1.2 developed by Benjamin Blunk aka Mullins182 (mullins182@t-online.de) ------------------------------------
+// ------------------------------------ Affiliate App v1.4 developed by Benjamin Blunk aka Mullins182 (mullins182@t-online.de) ------------------------------------
 
 const apiBase = "../php/api.php";
 
