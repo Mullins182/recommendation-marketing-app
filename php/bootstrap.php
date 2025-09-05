@@ -8,6 +8,8 @@ use Dotenv\Dotenv;
 $dotenv = Dotenv::createImmutable(dirname(__DIR__));
 $dotenv->safeLoad();
 
+date_default_timezone_set('Europe/Berlin');
+
 if (!isset($_ENV['AES_KEY_BASE64'])) {
     throw new RuntimeException('AES_KEY_BASE64 missing in .env');
 }
