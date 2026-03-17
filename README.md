@@ -1,4 +1,4 @@
-******* Recommendation Marketing App *******
+******* Recommendation Marketing App (My Project for my final Exam) *******
 
 - Customers registration via UI with email adress
 - Affiliate-Link sending via phpMailer to customers email
