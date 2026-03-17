@@ -4,6 +4,6 @@
 - Affiliate-Link sending via phpMailer to customers email
 - Vouchers creating with QR-Code, and delivery to customers email in pdf-format
 - Employee Area with PIN-Login for redeeming vouchers
-- Secured data transfers and encrypted (AES-256) email adresses transfer to database
+- Secured data transfers and encrypted (AES-256-GCM) email adresses transfer to database
 - CSRF-Session-Tokens
-- Prepared MySQL statements
+- Prepared MySQL statements (PDO)
